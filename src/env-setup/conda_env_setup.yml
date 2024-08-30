@@ -1,0 +1,54 @@
+# Conda Environment Setup Instructions ----
+#  - Using an environment.yml file with conda
+#  - Key Terminal Commands:
+#
+#    conda env create -f src/env-setup/conda_env_setup.yml
+#    conda env update --file src/env-setup/conda_env_setup.yml --prune
+#    conda env export --name timeseries_forecasting > envname.yml
+#    conda env remove --name timeseries_forecasting
+#    conda env list
+
+name: timeseries_forecasting
+channels:
+  - conda-forge
+  - defaults
+  - pytorch
+dependencies:
+  - python=3.11.9
+  - pip 
+  - pip:
+      # Core Data
+      - numpy >= 1.24.0, < 2.0.0
+      - pandas >= 2.2.0, < 3.0.0
+      - polars >= 1.6.0, < 2.0.0
+      # - openpyxl >= 3.0.0, < 4.0.0
+
+      # Visualization
+      - matplotlib >= 3.7.0, <4.0.0
+      - plotly >= 5.0.0, <6.0.0
+      - plotnine < 1.0.0
+
+      # Explorative Data Analysis
+      # - pyjanitor
+
+      # Time Series
+      - pytimetk >= 1.0.0, < 2.0.0
+      # - tsfresh
+      # - sktime
+      # - pmdarima
+      # - statsforecast
+      # - mlforecast
+      # - neuralforecast
+
+      # Machine Learning
+      # - scikit-learn
+
+      # Notebooks
+      - ipykernel
+      - jupyterlab
+      - jupyterlab-server
+      - ipywidgets
+      - ipympl
+      - jupytext
+
+
