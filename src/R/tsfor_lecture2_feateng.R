@@ -14,16 +14,16 @@
 
 # Packages ----------------------------------------------------------------
 
-source("R/utils.R")
-source("R/packages.R")
+source("src/R/utils.R")
+source("src/R/packages.R")
 
 
 
 # Data --------------------------------------------------------------------
 
-subscribers_tbl <- read_rds("data/subscribers.rds")
-analytics_tbl <- read_rds("data/analytics_hourly.rds")
-events_tbl <- read_rds("data/events.rds")
+subscribers_tbl <- read_rds("data/subscribers/subscribers.rds")
+analytics_tbl <- read_rds("data/subscribers/analytics_hourly.rds")
+events_tbl <- read_rds("data/subscribers/events.rds")
 
 
 

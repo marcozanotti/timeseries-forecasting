@@ -16,6 +16,7 @@ import pandas as pd
 # import polars as pl
 import pytimetk as tk
 from scipy.stats import boxcox 
+from statsmodels.nonparametric.smoothers_lowess import lowess
 
 pd.set_option("display.max_rows", 5)
 
@@ -111,7 +112,6 @@ subscribers_df \
         freq = 'M',
         agg_func = ['mean', 'std', 'median']
     )
-
 
 subscribers_daily_df = subscribers_df \
     .assign(value = 1) \
@@ -328,6 +328,24 @@ subscribers_daily_df \
 
 # - Identify trends and cycles
 # - Clean seasonality
+lowess(
+    subscribers_daily_df['value'], 
+    range(len(subscribers_daily_df['value'])),
+    frac = 0.1
+)
+
+def smoother(x, frac = 0.1):
+    res = lowess(x, range(len(x)), frac)[:, 1]
+    return res
+
+subscribers_daily_df \
+    .transform_columns(columns = 'value', transform_func = smoother)
+
+subscribers_daily_df \
+    .transform_columns(
+        columns = 'value', 
+        transform_func = lambda x: smoother(x, frac = 0.3)
+)
 
 
 # * Rolling Averages ------------------------------------------------------
@@ -337,6 +355,84 @@ subscribers_daily_df \
 # - Can help with outlier-effect reduction & trend detection
 # - Note: Businesses often use a rolling average as a forecasting technique
 # A rolling average forecast is usually sub-optimal (good opportunity for you!).
+
+subscribers_daily_df['value'].rolling(7).sum()
+subscribers_daily_df['value'].rolling(7).mean()
+
+subscribers_daily_df \
+    .augment_rolling(
+        date_column = 'optin_time',
+        value_column = 'value',
+        window_func = 'mean',
+        window = 7
+    )
+
+subscribers_daily_df \
+    .augment_rolling(
+        date_column = 'optin_time',
+        value_column = 'value',
+        window_func = ['mean', "std", "sum"],
+        window = [7, 14, 30],
+        center = True
+    )
+
+subscribers_daily_df \
+    .augment_rolling(
+        date_column = 'optin_time',
+        value_column = 'value',
+        window_func = ['mean'],
+        window = [7, 14, 30]
+    ) \
+    .melt(id_vars = 'optin_time', value_name = "value_ts") \
+    .plot_timeseries(
+        date_column = 'optin_time',
+        value_column = 'value_ts',
+        color_column = 'variable',
+        smooth = False
+    )
+
+subscribers_daily_df \
+    .transform_columns(columns = 'value', transform_func = np.log1p) \
+    .augment_rolling(
+        date_column = 'optin_time',
+        value_column = 'value',
+        window_func = ['mean'],
+        window = [7, 14, 30, 90, 365]
+    ) \
+    .melt(id_vars = 'optin_time', value_name = "value_ts") \
+    .plot_timeseries(
+        date_column = 'optin_time',
+        value_column = 'value_ts',
+        color_column = 'variable',
+        smooth = False
+    )
+
+# Exponential Weighted Moving Average
+subscribers_daily_df['value'].ewm(alpha = 0.1).mean()
+
+subscribers_daily_df \
+    .augment_ewm(
+        date_column = 'optin_time',
+        value_column = 'value',
+        window_func = 'mean',
+        alpha = 0.1
+    )
+
+subscribers_daily_df \
+    .transform_columns(columns = 'value', transform_func = np.log1p) \
+    .augment_ewm(
+        date_column = 'optin_time',
+        value_column = 'value',
+        window_func = 'mean',
+        alpha = 0.1
+    ) \
+    .melt(id_vars = 'optin_time', value_name = "value_ts") \
+    .plot_timeseries(
+        date_column = 'optin_time',
+        value_column = 'value_ts',
+        color_column = 'variable',
+        smooth = False
+    )
 
 
 # * Missing Values Imputation ---------------------------------------------
@@ -357,6 +453,33 @@ subscribers_daily_df \
 
 # Anomaly detection
 
+subscribers_daily_df \
+    .anomalize(
+        date_column = 'optin_time', value_column = 'value',
+        method = 'twitter',
+        iqr_alpha = 0.1,
+        max_anomalies = 0.2,
+        clean_alpha = 0.75,
+        clean = 'min-max'
+    )
+
+subscribers_anomaly_df = subscribers_daily_df \
+    .anomalize(
+        date_column = 'optin_time', value_column = 'value',
+        method = 'twitter',
+        iqr_alpha = 0.05,
+        max_anomalies = 0.2,
+        clean_alpha = 0.75,
+        clean = 'min-max'
+    )
+subscribers_anomaly_df \
+    .plot_anomalies(date_column = 'optin_time')
+subscribers_anomaly_df \
+    .plot_anomalies_decomp(date_column = 'optin_time')
+subscribers_anomaly_df \
+    .plot_anomalies_cleaned(date_column = 'optin_time')
+
+# effects on time series regression
 # without log
 # outlier effect - before cleaning
 
@@ -367,6 +490,7 @@ subscribers_daily_df \
 
 # outlier effect - after cleaning
 
+
 # * Lags & Differencing ---------------------------------------------------
 
 # - Lags: Often used for feature engineering
@@ -376,22 +500,137 @@ subscribers_daily_df \
 # - Difference: Makes a series "stationary" (potentially)
 
 # lags
+subscribers_daily_df \
+    .augment_lags(
+        date_column = 'optin_time',
+        value_column = 'value',
+        lags = 1
+    )
+
+subscribers_daily_df \
+    .transform_columns(columns = 'value', transform_func = np.log1p) \
+    .augment_lags(
+        date_column = 'optin_time',
+        value_column = 'value',
+        lags = [1, 7, 14, 30, 90]
+    ) \
+    .melt(id_vars = 'optin_time', value_name = "value_ts") \
+    .plot_timeseries(
+        date_column = 'optin_time',
+        value_column = 'value_ts',
+        color_column = 'variable',
+        smooth = False
+    )
 
 # differencing
+subscribers_daily_df \
+    .augment_diffs(
+        date_column = 'optin_time',
+        value_column = 'value',
+        periods = 1
+    )
+
+subscribers_daily_df \
+    .transform_columns(columns = 'value', transform_func = np.log1p) \
+    .augment_diffs(
+        date_column = 'optin_time',
+        value_column = 'value',
+        periods = [1, 2]
+    ) \
+    .melt(id_vars = 'optin_time', value_name = "value_ts") \
+    .plot_timeseries(
+        date_column = 'optin_time',
+        value_column = 'value_ts',
+        color_column = 'variable',
+        smooth = False
+    )
+subscribers_daily_df
+
+# percentage change
+subscribers_daily_df \
+    .augment_pct_change(
+        date_column = 'optin_time',
+        value_column = 'value',
+        periods = 1
+    )
+
+subscribers_daily_df \
+    .transform_columns(columns = 'value', transform_func = np.log1p) \
+    .augment_pct_change(
+        date_column = 'optin_time',
+        value_column = 'value',
+        periods = [1, 2]
+    ) \
+    .melt(id_vars = 'optin_time', value_name = "value_ts") \
+    .plot_timeseries(
+        date_column = 'optin_time',
+        value_column = 'value_ts',
+        color_column = 'variable',
+        smooth = False
+    )
+
 
 # * Fourier Transform ------------------------------------------------------
 
 # - Useful for incorporating seasonality & autocorrelation
 # - BENEFIT: Don't need a lag, just need a frequency (based on your time index)
 
-# single fourier series
+subscribers_daily_df \
+    .augment_fourier(
+        date_column = 'optin_time',
+        periods = 1,  
+        max_order = 2
+    )
 
-# multiple fourier series
+subscribers_daily_df \
+    .transform_columns(columns = 'value', transform_func = np.log1p) \
+    .augment_fourier(
+        date_column = 'optin_time',
+        periods = [1, 2],  
+        max_order = 2
+    ) \
+    .melt(id_vars = 'optin_time', value_name = "value_ts") \
+    .plot_timeseries(
+        date_column = 'optin_time',
+        value_column = 'value_ts',
+        color_column = 'variable',
+        smooth = False
+    )
+
+# Wavelet transform
+# https://ataspinar.com/2018/12/21/a-guide-for-using-the-wavelet-transform-in-machine-learning/
+tk.augment_wavelet(
+    subscribers_daily_df,
+    date_column = 'optin_time',
+    value_column = 'value',
+    scales = [7],  
+    sample_rate = 7,
+    method = 'bump'
+)
+    
+subscribers_daily_df \
+    .transform_columns(columns = 'value', transform_func = np.log1p) \
+    .augment_wavelet(
+        date_column = 'optin_time',
+        value_column = 'value',
+        scales = [7],  
+        sample_rate = 7,
+        method = 'bump'
+    ) \
+    .melt(id_vars = 'optin_time', value_name = "value_ts") \
+    .plot_timeseries(
+        date_column = 'optin_time',
+        value_column = 'value_ts',
+        color_column = 'variable',
+        smooth = False
+    )
+
+# effects on time series regression
+
 
 # * Confined Interval -----------------------------------------------------
 
 # - Transformation used to confine forecasts to a max/min interval
-
 
 
 
