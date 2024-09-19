@@ -17,14 +17,20 @@
 import numpy as np
 import pandas as pd
 # import polars as pl
+import re
+import pickle
+
 import pytimetk as tk
 
-from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
-import matplotlib.pyplot as plt
-
-from utilsforecast.feature_engineering import fourier, trend, time_features, pipeline
 from mlforecast import MLForecast
 from sklearn.linear_model import LinearRegression
+
+from utilsforecast.plotting import plot_series
+from utilsforecast.evaluation import evaluate
+from utilsforecast.losses import bias, mae, mape, mase, mse, rmae, rmse
+
+import matplotlib.pyplot as plt
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 
 import python_extensions as pex
 
@@ -63,7 +69,7 @@ events_df.glimpse()
 # clean anomaly on '2018-11-19'
 
 # subscribers data
-data_prep_df = subscribers_df \
+subscribers_prep_df = subscribers_df \
     .assign(value = 1) \
     .rename(columns = {"optin_time": "date"}) \
     .summarize_by_time(
@@ -78,8 +84,8 @@ data_prep_df = subscribers_df \
         start_date = '2018-01-06'
     ) \
     .fillna(0) \
-    .transform_columns(columns = 'value', transform_func = np.log1p) \
-    .transform_columns(columns = 'value', transform_func = pex.normalize) \
+    .transform_columns(columns = 'value', transform_func = pex.log_interval) \
+    .transform_columns(columns = 'value', transform_func = pex.standardize) \
     .filter_by_time(
         date_column = 'date', 
         start_date = '2018-07-03' 
@@ -95,7 +101,7 @@ data_prep_df = subscribers_df \
     .assign(id = 'subscribers') \
     .reindex(columns = ['id', 'date', 'observed_clean']) \
     .rename(columns = {'observed_clean': 'value'})   
-data_prep_df \
+subscribers_prep_df \
     .plot_timeseries(
         date_column = 'date',
         value_column = 'value',
@@ -104,7 +110,7 @@ data_prep_df \
 
 # Nixtla's default format 
 # 'unique_id', 'ds', 'y'
-data_prep_df = data_prep_df \
+subscribers_prep_df = subscribers_prep_df \
     .rename(
         columns = {
             'id': 'unique_id',
@@ -112,7 +118,7 @@ data_prep_df = data_prep_df \
             'value': 'y'
         }
     )
-data_prep_df
+subscribers_prep_df
 
 
 # analytics data
@@ -135,7 +141,7 @@ analytics_prep_df = analytics_df \
     ) \
     .transform_columns(
         columns = ['pageViews', 'organicSearches', 'sessions'], 
-        transform_func = pex.normalize
+        transform_func = pex.standardize
     ) \
     .filter_by_time(
         date_column = 'date', 
@@ -180,34 +186,35 @@ events_prep_df \
 # * Time-Based Features ---------------------------------------------------
 
 # calendar
-data_prep_df \
+subscribers_prep_df \
     .augment_timeseries_signature(date_column = 'ds')
 
 # holidays
-data_prep_df \
+subscribers_prep_df \
     .augment_holiday_signature(date_column = 'ds', country_name = 'US')
 
 
 # * Trend-Based Features --------------------------------------------------
 
 # linear trend
-data_prep_df \
+subscribers_prep_df \
     .augment_timeseries_signature(date_column = 'ds') \
     .reindex(columns = ['unique_id', 'ds', 'y', 'ds_index_num']) \
     .plot_time_series_regression()
 
 # nonlinear trend - basis splines
-
-
-# nonlinear trend - natural splines
-
-
+subscribers_prep_df \
+    .augment_timeseries_signature(date_column = 'ds') \
+    .reindex(columns = ['unique_id', 'ds', 'y', 'ds_index_num']) \
+    .augment_bsplines(column_name = 'ds_index_num', df = 8, degree = 3) \
+    .drop('ds_index_num', axis = 1) \
+    .plot_time_series_regression()
 
 
 # * Seasonal Features -----------------------------------------------------
 
 # weekly seasonality (one-hot-encoding)
-data_prep_tmp = data_prep_df \
+data_prep_tmp = subscribers_prep_df \
     .augment_timeseries_signature(date_column = 'ds') \
     .reindex(columns = ['unique_id', 'ds', 'y', 'ds_wday_lbl'])
 data_prep_tmp = pd.get_dummies(
@@ -218,7 +225,7 @@ data_prep_tmp \
     .plot_time_series_regression()
 
 # monthly seasonality
-data_prep_tmp = data_prep_df \
+data_prep_tmp = subscribers_prep_df \
     .augment_timeseries_signature(date_column = 'ds') \
     .reindex(columns = ['unique_id', 'ds', 'y', 'ds_month_lbl'])
 data_prep_tmp = pd.get_dummies(
@@ -232,7 +239,7 @@ data_prep_tmp \
 # * Interaction Features --------------------------------------------------
 
 # day of week * week 2 of the month
-data_prep_tmp = data_prep_df \
+data_prep_tmp = subscribers_prep_df \
     .augment_timeseries_signature(date_column = 'ds') \
     .reindex(columns = ['unique_id', 'ds', 'y', 'ds_mweek', 'ds_wday'])
 data_prep_tmp = pd.get_dummies(
@@ -247,7 +254,7 @@ data_prep_tmp \
 
 # * Rolling Average Features ----------------------------------------------
 
-data_prep_df \
+subscribers_prep_df \
     .augment_rolling(
         date_column = 'ds',
         value_column = 'y',
@@ -258,7 +265,7 @@ data_prep_df \
     .plot_time_series_regression()
 
 # Exponential Weighted Moving Average
-data_prep_df \
+subscribers_prep_df \
     .augment_ewm(
         date_column = 'ds',
         value_column = 'y',
@@ -282,10 +289,10 @@ data_prep_df \
 
 # * Lag Features ----------------------------------------------------------
 
-plot_acf(data_prep_df["y"], lags = 50)
-plot_pacf(data_prep_df["y"], lags = 50)
+plot_acf(subscribers_prep_df["y"], lags = 50)
+plot_pacf(subscribers_prep_df["y"], lags = 50)
 
-data_prep_df \
+subscribers_prep_df \
     .augment_lags(
         date_column = 'ds', 
         value_column = 'y', 
@@ -297,7 +304,7 @@ data_prep_df \
 
 # * Fourier Series Features -----------------------------------------------
 
-data_prep_df \
+subscribers_prep_df \
     .augment_fourier(
         date_column = 'ds', 
         periods = [1, 7, 14, 30, 90], 
@@ -309,7 +316,7 @@ data_prep_df \
 # * Wavelet Series Features -----------------------------------------------
 
 tk.augment_wavelet(
-    data_prep_df, 
+    subscribers_prep_df, 
     date_column = 'ds', 
     value_column = 'y',
     scales = [7, 14, 30, 90],  
@@ -322,14 +329,14 @@ tk.augment_wavelet(
 # * External Regressor Features -------------------------------------------
 
 # Event data features 
-data_prep_df \
+subscribers_prep_df \
     .merge(events_prep_df, left_on = 'ds', right_on = 'date', how = 'left') \
     .drop('date', axis = 1) \
     .fillna(0) \
     .plot_time_series_regression()
 
 # Analytics data features
-data_prep_df \
+subscribers_prep_df \
     .merge(analytics_prep_df, left_on = 'ds', right_on = 'date', how = 'left') \
     .drop('date', axis = 1) \
     .augment_lags(
@@ -369,8 +376,8 @@ subscribers_prep_df = subscribers_df \
         start_date = '2018-01-06'
     ) \
     .fillna(0) \
-    .transform_columns(columns = 'value', transform_func = np.log1p) \
-    .transform_columns(columns = 'value', transform_func = pex.normalize) \
+    .transform_columns(columns = 'value', transform_func = pex.log_interval) \
+    .transform_columns(columns = 'value', transform_func = pex.standardize) \
     .filter_by_time(
         date_column = 'date', 
         start_date = '2018-07-03' 
@@ -386,6 +393,15 @@ subscribers_prep_df = subscribers_df \
     .assign(id = 'subscribers') \
     .reindex(columns = ['id', 'date', 'observed_clean']) \
     .rename(columns = {'observed_clean': 'value'})
+
+# Store transformation parameters
+params = {
+    'lower_bound': 0,
+    'upper_bound': 3649.8,
+    'offset': 1,
+    'mean_x': -5.82796116564194,
+    'stdev_x': 1.533985803607424
+}
 
 # Nixtla's default format 
 # 'unique_id', 'ds', 'y'
@@ -426,7 +442,10 @@ events_prep_df
 # - Add rolling features to full dataset
 # - Add fourier terms to full dataset
 # - Add calendar variable to full dataset (+ one-hot-encoding)
+# - Add holidays variables to full dataset (+ one-hot-encoding)
+# - Add splines
 # - Add any external regressors to full dataset
+# - Add any interaction terms to full dataset
 
 horizon = 7 * 8 # 8 weeks
 lag_periods = [7 * 8]
@@ -469,12 +488,23 @@ data_prep_full_df = subscribers_prep_df \
         ], 
         axis = 1
     ) \
+    .augment_holiday_signature(date_column = 'ds', country_name = 'US') \
+    .drop('holiday_name', axis = 1) \
+    .augment_bsplines(column_name = 'ds_index_num', df = 8, degree = 3) \
     .merge(events_prep_df, left_on = 'ds', right_on = 'date', how = 'left') \
     .drop('date', axis = 1) \
     .fillna({'event': 0})
-data_prep_full_df
 
+# create interactions and combine
+interactions_df = pd.get_dummies(
+    data_prep_full_df, columns = ['ds_mweek'], 
+    drop_first = True, dtype = int
+) \
+    .assign(inter_wday_week2 = lambda x: x['ds_wday'] * x['ds_mweek_2']) \
+    .reindex(columns = ['inter_wday_week2', 'ds_mweek_2'])
+data_prep_full_df = pd.concat([data_prep_full_df, interactions_df], axis = 1)
 
+# one-hot-encoding of dummy variables
 data_prep_full_dummy_df = pd.get_dummies(
     data_prep_full_df, columns = ['ds_wday_lbl', 'ds_month_lbl'], 
     drop_first = True, dtype = int
@@ -488,5 +518,188 @@ data_prep_df = data_prep_full_dummy_df.head(n = -horizon)
 forecast_df = data_prep_full_dummy_df.tail(n = horizon)
 
 
+# * Create different Features Sets ('Recipes') ----------------------------
+
+# base feature set (no lags, no splines)
+r = re.compile(r'(lag)|(spline)')
+base_fs = [i for i in data_prep_df.columns if not r.search(i)]
+base_fs
+
+# spline feature set (no lags)
+r = re.compile(r'lag')
+spline_fs = [i for i in data_prep_df.columns if not r.search(i)]
+spline_fs
+
+# lag feature set (no spline)
+r = re.compile(r'spline')
+lag_fs = [i for i in data_prep_df.columns if not r.search(i)]
+lag_fs
+
+feature_sets = {
+    'base': base_fs,
+    'spline': spline_fs,
+    'lag': lag_fs
+}
+
+
 # * Save Artifacts --------------------------------------------------------
+
+feature_engineering_artifacts = {
+    'data_prep_df': data_prep_df,
+    'forecast_df': forecast_df,
+    'transform_params': params, 
+    'feature_sets': feature_sets
+}
+feature_engineering_artifacts
+
+'../../artifacts/Python/feature_engineering_artifacts_list.pkl'
+
+# Serialize the object to a binary format
+with open('artifacts/Python/feature_engineering_artifacts_list.pkl', 'wb') as file:
+    pickle.dump(feature_engineering_artifacts, file)
+
+
+
+# Testing - Modelling Workflow --------------------------------------------
+
+# Nixtla's workflow
+# 1. set the model engine (usually it contains preprocessing and 
+#    feature engineering information)
+# 2. fit the model on the whole data
+# 3. model evaluation against a test set is done cross-validating 
+#    the fitted object
+# 4. produce forecast out-of-sample
+
+
+# * Features Sets (Recipes) -----------------------------------------------
+
+# in our case we have created manually all the features, hence we need
+# to create a different dataset for each feature set that we want to test 
+data_base = data_prep_df.reindex(columns = base_fs)
+data_spline = data_prep_df.reindex(columns = spline_fs)
+data_lag = data_prep_df \
+    .reindex(columns = lag_fs) \
+    .dropna()
+
+
+# * Model Engine Specification --------------------------------------------
+
+# Linear Regression
+fcst_base = MLForecast(models = LinearRegression(), freq = 'D')
+fcst_spline = MLForecast(models = LinearRegression(), freq = 'D')
+fcst_lag = MLForecast(models = LinearRegression(), freq = 'D')
+
+
+# * Model Fitting ---------------------------------------------------------
+
+fcst_base.fit(data_base, static_features = [])
+fcst_spline.fit(data_spline, static_features = [])
+fcst_lag.fit(data_lag, static_features = [])
+
+
+# * Evaluation ------------------------------------------------------------
+
+cv_result_base = fcst_base.cross_validation(
+    data_base, 
+    n_windows = 1,
+    h = horizon, 
+    static_features = []
+) \
+    .rename(columns = {'LinearRegression': 'linreg_base'})
+cv_result_base
+
+cv_result_spline = fcst_spline.cross_validation(
+    data_spline, 
+    n_windows = 1,
+    h = horizon, 
+    static_features = []
+) \
+    .rename(columns = {'LinearRegression': 'linreg_spline'})
+cv_result_lag = fcst_lag.cross_validation(
+    data_lag, 
+    n_windows = 1,
+    h = horizon, 
+    static_features = []
+) \
+    .rename(columns = {'LinearRegression': 'linreg_lag'})
+
+cv_result = cv_result_base \
+    .merge(cv_result_spline, on = ['unique_id', 'ds', 'y', 'cutoff'], how = 'left') \
+    .merge(cv_result_lag, on = ['unique_id', 'ds', 'y', 'cutoff'], how = 'left')
+
+# Plot Forecasts
+plot_series(
+    forecasts_df = cv_result.drop('cutoff', axis = 1), 
+    engine = 'plotly'
+).show()
+
+# Accuracy
+accuracy_result = evaluate(
+    df = cv_result.drop(columns = 'cutoff'),
+    train_df = data_prep_df,
+    metrics = [bias, mae, mape, mse, rmse],
+    agg_fn = 'mean'
+)
+accuracy_result
+
+
+# * Forecasting -----------------------------------------------------------
+
+# there is no need to refit the model to produce the forecasts, 
+# but if you cross-validated the model, than you have to run fit again
+fcst_base.fit(data_base, static_features = [])
+fcst_spline.fit(data_spline, static_features = [])
+fcst_lag.fit(data_lag, static_features = [])
+
+preds_base = fcst_base.predict(h = horizon, X_df = forecast_df) \
+    .rename(columns = {'LinearRegression': 'linreg_base'})
+preds_base
+
+preds_spline = fcst_spline.predict(h = horizon, X_df = forecast_df) \
+    .rename(columns = {'LinearRegression': 'linreg_spline'})
+preds_lag = fcst_lag.predict(h = horizon, X_df = forecast_df) \
+    .rename(columns = {'LinearRegression': 'linreg_lag'})
+
+preds = preds_base \
+    .merge(preds_spline, on = ['unique_id', 'ds'], how = 'left') \
+    .merge(preds_lag, on = ['unique_id', 'ds'], how = 'left')
+
+plot_series(
+    df = data_prep_df, 
+    forecasts_df = preds, 
+    engine = 'plotly'
+).show()
+
+
+# * Back-transform --------------------------------------------------------
+
+data_back_df = data_prep_df \
+    .transform_columns(
+        columns = 'y', 
+        transform_func = lambda x: pex.inv_standardize(x, params['mean_x'], params['stdev_x'])
+    ) \
+    .transform_columns(
+        columns = 'y', 
+        transform_func = lambda x: pex.inv_log_interval(
+            x, params['lower_bound'], params['upper_bound'], params['offset']
+        )
+    )
+
+preds_back_df = preds \
+    .transform_columns(
+        columns = ['linreg_base', 'linreg_spline', 'linreg_lag'], 
+        transform_func = lambda x: pex.inv_standardize(x, params['mean_x'], params['stdev_x'])
+    ) \
+    .transform_columns(
+        columns = ['linreg_base', 'linreg_spline', 'linreg_lag'], 
+        transform_func = lambda x: pex.inv_log_interval(
+            x, params['lower_bound'], params['upper_bound'], params['offset']
+        )
+    )
+
+plot_series(
+    df = data_back_df, 
+    forecasts_df = preds_back_df, 
+    engine = 'plotly'
+).show()
 
