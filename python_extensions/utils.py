@@ -1,10 +1,14 @@
 
+import re
 import pandas as pd
 import numpy as np
 import pandas_flavor as pf
 from statsmodels.gam.api import BSplines
 from mlforecast import MLForecast
 from sklearn.linear_model import LinearRegression
+from statsforecast import StatsForecast
+from utilsforecast.evaluation import evaluate
+from utilsforecast.losses import bias, mae, mape, mse, rmse
 
 
 # function to perform data standardization (mean 0, stdev 1)
@@ -75,3 +79,82 @@ def plot_time_series_regression(data):
         )
 
     return p
+
+# function to plot the cross-validation plan
+@pf.register_dataframe_method
+def plot_cross_validation_plan(
+    data, freq, h, 
+    n_windows = 1, step_size = 1,
+    engine = 'matplotlib'
+):
+
+    data = data[['unique_id', 'ds', 'y']]
+    sf = StatsForecast(models = [], freq = freq, n_jobs = -1)
+    cv_df = sf.cross_validation(
+        df = data, h = h, n_windows = n_windows, step_size = step_size
+    )
+
+    cv_df.rename(columns = {'y': 'cv_set'}, inplace = True)
+    cutoff = cv_df['cutoff'].unique()
+
+    for k in range(len(cutoff)): 
+        cv = cv_df[cv_df['cutoff'] == cutoff[k]]
+        StatsForecast.plot(
+            data, cv.drop('cutoff', axis = 1), 
+            engine = engine
+        ).show()
+
+# function to perform evaluation on test set
+def calibrate_evaluate_plot(
+    class_object, data, h, 
+    prediction_intervals = None, level = None,
+    engine = 'matplotlib',
+    max_insample_length = None
+):
+
+    cv_res = class_object.cross_validation(
+        df = data, 
+        h = h, 
+        n_windows = 1,
+        prediction_intervals = prediction_intervals, 
+        level = level
+    )
+    acc_res = evaluate(
+        df = cv_res.drop(columns = 'cutoff'),
+        train_df = data,
+        metrics = [bias, mae, mape, mse, rmse],
+        agg_fn = 'mean'
+    )
+    p_res = StatsForecast.plot(
+        df = data.head(n = -h),
+        forecasts_df = cv_res.drop('cutoff', axis = 1),
+        level = level,  
+        max_insample_length = max_insample_length,
+        engine = engine
+    )
+
+    res = {
+        'cv_results': cv_res, 
+        'accuracy_table': acc_res, 
+        'plot': p_res
+    }
+
+    return res
+
+# function to get model names from data
+@pf.register_dataframe_method
+def get_models_name(data):
+    r = re.compile(r'(unique_id)|(ds)|(y)|(-lo-)|(-hi-)')
+    models_name = [i for i in data.columns if not r.search(i)]
+    return models_name
+
+# function to select 
+@pf.register_dataframe_method
+def select_columns(data, regex = None):
+    if (regex == None):
+        cols_name = ['unique_id', 'ds', 'y']
+    else:
+        regex = '(^unique_id$)|(^ds$)|(^y$)|' + regex
+        r = re.compile(regex)
+        cols_name = [i for i in data.columns if r.search(i)]
+    return data[cols_name]
