@@ -552,8 +552,6 @@ feature_engineering_artifacts = {
 }
 feature_engineering_artifacts
 
-'../../artifacts/Python/feature_engineering_artifacts_list.pkl'
-
 # Serialize the object to a binary format
 with open('artifacts/Python/feature_engineering_artifacts_list.pkl', 'wb') as file:
     pickle.dump(feature_engineering_artifacts, file)
@@ -565,20 +563,27 @@ with open('artifacts/Python/feature_engineering_artifacts_list.pkl', 'wb') as fi
 # Nixtla's workflow
 # 1. set the model engine (usually it contains preprocessing and 
 #    feature engineering information)
-# 2. fit the model on the whole data
-# 3. model evaluation against a test set is done cross-validating 
-#    the fitted object
+# 2. evaluate the model against a test set (it is done by cross-validation)
+# 3. re-fit the model on the whole data
 # 4. produce forecast out-of-sample
+
+with open('artifacts/Python/feature_engineering_artifacts_list.pkl', 'rb') as f:
+    data_loaded = pickle.load(f)
+data_prep_df = data_loaded['data_prep_df']
+forecast_df = data_loaded['forecast_df']
+feature_sets = data_loaded['feature_sets']
+params = data_loaded['transform_params']
+horizon = 7 * 8 # 8 weeks
 
 
 # * Features Sets (Recipes) -----------------------------------------------
 
 # in our case we have created manually all the features, hence we need
 # to create a different dataset for each feature set that we want to test 
-data_base = data_prep_df.reindex(columns = base_fs)
-data_spline = data_prep_df.reindex(columns = spline_fs)
+data_base = data_prep_df.reindex(columns = feature_sets['base'])
+data_spline = data_prep_df.reindex(columns = feature_sets['spline'])
 data_lag = data_prep_df \
-    .reindex(columns = lag_fs) \
+    .reindex(columns = feature_sets['lag']) \
     .dropna()
 
 
@@ -588,13 +593,6 @@ data_lag = data_prep_df \
 fcst_base = MLForecast(models = LinearRegression(), freq = 'D')
 fcst_spline = MLForecast(models = LinearRegression(), freq = 'D')
 fcst_lag = MLForecast(models = LinearRegression(), freq = 'D')
-
-
-# * Model Fitting ---------------------------------------------------------
-
-fcst_base.fit(data_base, static_features = [])
-fcst_spline.fit(data_spline, static_features = [])
-fcst_lag.fit(data_lag, static_features = [])
 
 
 # * Evaluation ------------------------------------------------------------
@@ -643,13 +641,14 @@ accuracy_result = evaluate(
 accuracy_result
 
 
-# * Forecasting -----------------------------------------------------------
+# * Model Re-Fitting ---------------------------------------------------------
 
-# there is no need to refit the model to produce the forecasts, 
-# but if you cross-validated the model, than you have to run fit again
 fcst_base.fit(data_base, static_features = [])
 fcst_spline.fit(data_spline, static_features = [])
 fcst_lag.fit(data_lag, static_features = [])
+
+
+# * Forecasting -----------------------------------------------------------
 
 preds_base = fcst_base.predict(h = horizon, X_df = forecast_df) \
     .rename(columns = {'LinearRegression': 'linreg_base'})
