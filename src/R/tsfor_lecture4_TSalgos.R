@@ -206,7 +206,7 @@ calibrate_evaluate_plot(
 
 # - Automatic forecasting method based on Exponential Smoothing
 # - Single Seasonality
-# - Cannot use XREGs (purely univariate)
+# - Cannot use XREGs (purely univariate) (possible using Smooth package)
 
 
 # * Engines ---------------------------------------------------------------

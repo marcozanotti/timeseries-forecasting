@@ -3,6 +3,7 @@ import re
 import pandas as pd
 import numpy as np
 import pandas_flavor as pf
+import random
 from statsmodels.gam.api import BSplines
 from mlforecast import MLForecast
 from sklearn.linear_model import LinearRegression
@@ -148,7 +149,7 @@ def get_models_name(data):
     models_name = [i for i in data.columns if not r.search(i)]
     return models_name
 
-# function to select 
+# function to select columns of a dataframe based on regex
 @pf.register_dataframe_method
 def select_columns(data, regex = None):
     if (regex == None):
@@ -158,3 +159,89 @@ def select_columns(data, regex = None):
         r = re.compile(regex)
         cols_name = [i for i in data.columns if r.search(i)]
     return data[cols_name]
+
+# function to transform a dataframe to intermittent (in Nixtla's format)
+@pf.register_dataframe_method
+def to_intermittent(data, prop_of_zeros = 0.90):
+
+    n = len(data)
+    n_with_zeros = int(n * prop_of_zeros)
+    ids_with_zero = random.sample(range(1, n), n_with_zeros)
+    ids_with_zero.sort()
+    data_inter = data.copy()
+    data_inter.loc[ids_with_zero, 'y'] = 0
+
+    return data_inter
+
+# function to print accuracy table
+@pf.register_dataframe_method
+def print_accuracy_table(data, type = 'min'):
+    if type == 'min':
+        data_res = data \
+            .set_index('metric') \
+            .style.highlight_min(color = 'green', axis = 1)
+    else:
+        data_res = data \
+            .set_index('metric') \
+            .style.highlight_max(color = 'red', axis = 1)
+    return data_res
+
+# function to select the best model from accuracy table
+@pf.register_dataframe_method
+def get_best_model_name(accuracy_data, metric = 'rmse'):
+    data_filtered = accuracy_data \
+        .melt(id_vars = 'metric') \
+        .query("metric == @metric") \
+        .reset_index() \
+        .drop('index', axis = 1)
+    id_min = data_filtered['value'].idxmin()
+    model_name = data_filtered.loc[id_min, 'variable']
+    return model_name
+
+# function to get the best model forecast results
+@pf.register_dataframe_method
+def get_best_model_forecast(forecasts_data, accuracy_data, metric = 'rmse'):
+    best_name = get_best_model_name(accuracy_data, metric = metric)
+    best_forecasts = select_columns(forecasts_data, regex = f'{best_name}')
+    return best_forecasts
+
+# function to back transform results
+@pf.register_dataframe_method
+def back_transform_data(data, params, forecasts_data = None):
+
+    data_back_df = data \
+        .transform_columns(
+            columns = 'y', 
+            transform_func = lambda x: pex.inv_standardize(
+                x, params['mean_x'], params['stdev_x']
+            )
+        ) \
+        .transform_columns(
+            columns = 'y', 
+            transform_func = lambda x: pex.inv_log_interval(
+                x, params['lower_bound'], params['upper_bound'], params['offset']
+            )
+        )
+
+    res = {'data_back': data_back_df}
+
+    if forecasts_data is not None:
+        cols_to_transform = forecasts_data \
+            .drop(['unique_id', 'ds'], axis = 1) \
+            .columns
+        fcst_back_df = forecasts_data \
+            .transform_columns(
+                columns = cols_to_transform, 
+                transform_func = lambda x: pex.inv_standardize(
+                    x, params['mean_x'], params['stdev_x']
+                )
+            ) \
+            .transform_columns(
+                columns = cols_to_transform, 
+                transform_func = lambda x: pex.inv_log_interval(
+                    x, params['lower_bound'], params['upper_bound'], params['offset']
+                )
+            )
+        res['forecasts_back'] = fcst_back_df
+
+    return res
