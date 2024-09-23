@@ -107,19 +107,27 @@ def plot_cross_validation_plan(
 
 # function to perform evaluation on test set
 def calibrate_evaluate_plot(
-    class_object, data, h, 
+    object, data, h, 
     prediction_intervals = None, level = None,
     engine = 'matplotlib',
     max_insample_length = None
 ):
 
-    cv_res = class_object.cross_validation(
-        df = data, 
-        h = h, 
-        n_windows = 1,
-        prediction_intervals = prediction_intervals, 
-        level = level
-    )
+    object_class = str(object.__class__)
+    if object_class == "<class 'statsforecast.core.StatsForecast'>":
+        cv_res = object.cross_validation(
+            df = data, h = h, n_windows = 1,
+            prediction_intervals = prediction_intervals, 
+            level = level
+        )
+    else:
+        cv_res = object.cross_validation(
+            df = data, h = h, n_windows = 1,
+            prediction_intervals = prediction_intervals, 
+            level = level,
+            static_features = []
+        )
+
     acc_res = evaluate(
         df = cv_res.drop(columns = 'cutoff'),
         train_df = data,
