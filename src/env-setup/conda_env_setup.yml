@@ -17,6 +17,7 @@ dependencies:
   - python=3.11.9
   - pip 
   - pip:
+
       # Core Data
       - numpy >= 1.24.0, < 2.0.0
       - pandas >= 2.2.0, < 3.0.0
@@ -38,12 +39,15 @@ dependencies:
       - pytimetk >= 1.0.0, < 2.0.0
       - prophet >= 1.1.0, < 2.0.0
       # - tsfresh
-      # - sktime
       # - pmdarima
       
       # Machine Learning
       - statsmodels >= 0.10.0, < 1.0.0
       - scikit-learn >= 1.5.0, < 2.0.0
+      - xgboost >= 2.1.0, < 3.0.0
+      - lightgbm >= 4.5.0, < 5.0.0
+      - catboost >= 1.2.0, < 2.0.0
+      - cubist >=  0.1.0, < 1.0.0
 
       # Nixtla-verse
       - coreforecast >= 0.0.12, < 1.0.0

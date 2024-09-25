@@ -136,10 +136,10 @@ cv_res_baseline['plot'].show()
 # otherwise use .forecast (optimized to run also on clusters)
 # P.S. specify fitted = True to store the fitted values
 
-# fit_res_baseline = sf_baseline.fit(
+# fit_baseline = sf_baseline.fit(
 #     df = data_prep_df, prediction_intervals = intervals
 # )
-# preds_df_baseline = fit_res_baseline.predict(
+# preds_df_baseline = fit_baseline.predict(
 #     h = horizon, level = levels
 # )
 fcst_df_baseline = sf_baseline.forecast(
@@ -506,7 +506,7 @@ sf_ts = StatsForecast(
 
 # with external regressors
 cv_res_ts = pex.calibrate_evaluate_plot(
-    class_object = sf_ts, data = y_xregs_df,
+    object = sf_ts, data = y_xregs_df,
     h = horizon, prediction_intervals = intervals, level = levels,
     engine = 'plotly', max_insample_length = horizon * 2  
 )

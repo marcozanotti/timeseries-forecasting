@@ -5,11 +5,12 @@ import numpy as np
 import pandas_flavor as pf
 import random
 from statsmodels.gam.api import BSplines
+from statsforecast import StatsForecast
 from mlforecast import MLForecast
 from sklearn.linear_model import LinearRegression
-from statsforecast import StatsForecast
 from utilsforecast.evaluation import evaluate
 from utilsforecast.losses import bias, mae, mape, mse, rmse
+from utilsforecast.plotting import plot_series
 
 
 # function to perform data standardization (mean 0, stdev 1)
@@ -134,19 +135,14 @@ def calibrate_evaluate_plot(
         metrics = [bias, mae, mape, mse, rmse],
         agg_fn = 'mean'
     )
-    p_res = StatsForecast.plot(
+    p_res = plot_series(
         df = data.head(n = -h),
         forecasts_df = cv_res.drop('cutoff', axis = 1),
         level = level,  
         max_insample_length = max_insample_length,
         engine = engine
     )
-
-    res = {
-        'cv_results': cv_res, 
-        'accuracy_table': acc_res, 
-        'plot': p_res
-    }
+    res = {'cv_results': cv_res, 'accuracy_table': acc_res, 'plot': p_res}
 
     return res
 
@@ -220,18 +216,16 @@ def back_transform_data(data, params, forecasts_data = None):
     data_back_df = data \
         .transform_columns(
             columns = 'y', 
-            transform_func = lambda x: pex.inv_standardize(
+            transform_func = lambda x: inv_standardize(
                 x, params['mean_x'], params['stdev_x']
             )
         ) \
         .transform_columns(
             columns = 'y', 
-            transform_func = lambda x: pex.inv_log_interval(
+            transform_func = lambda x: inv_log_interval(
                 x, params['lower_bound'], params['upper_bound'], params['offset']
             )
         )
-
-    res = {'data_back': data_back_df}
 
     if forecasts_data is not None:
         cols_to_transform = forecasts_data \
@@ -240,16 +234,18 @@ def back_transform_data(data, params, forecasts_data = None):
         fcst_back_df = forecasts_data \
             .transform_columns(
                 columns = cols_to_transform, 
-                transform_func = lambda x: pex.inv_standardize(
+                transform_func = lambda x: inv_standardize(
                     x, params['mean_x'], params['stdev_x']
                 )
             ) \
             .transform_columns(
                 columns = cols_to_transform, 
-                transform_func = lambda x: pex.inv_log_interval(
+                transform_func = lambda x: inv_log_interval(
                     x, params['lower_bound'], params['upper_bound'], params['offset']
                 )
             )
-        res['forecasts_back'] = fcst_back_df
+        res = {'data_back': data_back_df, 'forecasts_back': fcst_back_df}
+    else:
+        res = data_back_df
 
     return res
