@@ -5,3 +5,4 @@
 Dataset/
 .log
 catboost_info/
+lightning_logs/

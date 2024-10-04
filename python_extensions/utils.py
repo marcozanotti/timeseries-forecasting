@@ -110,6 +110,7 @@ def plot_cross_validation_plan(
 def calibrate_evaluate_plot(
     object, data, h, 
     prediction_intervals = None, level = None,
+    loss = None,
     engine = 'matplotlib',
     max_insample_length = None
 ):
@@ -121,27 +122,53 @@ def calibrate_evaluate_plot(
             prediction_intervals = prediction_intervals, 
             level = level
         )
-    else:
+    elif object_class == "<class 'mlforecast.core.MLForecast'>":
         cv_res = object.cross_validation(
             df = data, h = h, n_windows = 1,
             prediction_intervals = prediction_intervals, 
             level = level,
             static_features = []
         )
-
+    elif object_class == "<class 'neuralforecast.core.NeuralForecast'>":
+        cv_res = object.cross_validation(
+            df = data, n_windows = 1
+        )
+    else:
+        raise Exception(f"Unknown object of class {object_class}")
+    
+    if loss == 'DistributionLoss':
+        cv_res = cv_res \
+            .loc[:, ~ cv_res.columns.str.endswith('-median')]
+    elif loss == 'MQLoss':
+        # remove -median when using MQLoss in DL
+        cv_res = cv_res \
+            .rename(columns = lambda x: re.sub('-median', '', x))
+    else:
+        cv_res = cv_res
+    
     acc_res = evaluate(
         df = cv_res.drop(columns = 'cutoff'),
         train_df = data,
         metrics = [bias, mae, mape, mse, rmse],
         agg_fn = 'mean'
     )
-    p_res = plot_series(
-        df = data.head(n = -h),
-        forecasts_df = cv_res.drop('cutoff', axis = 1),
-        level = level,  
-        max_insample_length = max_insample_length,
-        engine = engine
-    )
+
+    if level == None:
+        p_res = plot_series(
+            df = data.head(n = -h),
+            forecasts_df = cv_res.drop('cutoff', axis = 1),
+            max_insample_length = max_insample_length,
+            engine = engine
+        )
+    else:
+        p_res = plot_series(
+            df = data.head(n = -h),
+            forecasts_df = cv_res.drop('cutoff', axis = 1),
+            level = level,  
+            max_insample_length = max_insample_length,
+            engine = engine
+        )
+
     res = {'cv_results': cv_res, 'accuracy_table': acc_res, 'plot': p_res}
 
     return res

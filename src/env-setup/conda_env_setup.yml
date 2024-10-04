@@ -54,7 +54,7 @@ dependencies:
       - utilsforecast >= 0.2.0, < 1.0.0
       - statsforecast >= 1.7.7, < 2.0.0
       - mlforecast >= 0.13.1, < 1.0.0
-      # - neuralforecast >=1.7.2, < 2.0.0
+      - neuralforecast >= 1.7.2, < 2.0.0
 
       # Sktime-verse
       # - sktime
