@@ -27,7 +27,7 @@ dependencies:
       # Visualization
       - matplotlib >= 3.7.0, < 4.0.0
       - plotly >= 5.0.0, < 6.0.0
-      - plotnine < 1.0.0
+      # - plotnine < 1.0.0
 
       # Explorative Data Analysis
       # - pyjanitor

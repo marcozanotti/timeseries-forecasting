@@ -25,8 +25,7 @@ import pytimetk as tk
 
 
 from neuralforecast import NeuralForecast
-from neuralforecast.losses.pytorch import MQLoss
-from neuralforecast.losses.pytorch import DistributionLoss
+from neuralforecast.losses.pytorch import MQLoss, DistributionLoss, MSE
 
 from utilsforecast.evaluation import evaluate
 from utilsforecast.losses import bias, mae, mape, mse, rmse
@@ -73,7 +72,7 @@ pex.plot_cross_validation_plan(
 
 # * External Regressors ---------------------------------------------------
 
-# back-transform the y to use mlforecast full workflow
+# back-transform the y to use neuralforecast full workflow
 # but results are not directly comparable to those of TS because 
 # the predictions are automatically back-transformed
 # y_df = data_prep_df \
@@ -89,7 +88,7 @@ y_xregs_df = data_prep_df
 
 
 
-# MLP ---------------------------------------------------------------------
+# MLP-Based ---------------------------------------------------------------
 
 # One of the simplest neural architectures are Multi Layer Perceptrons 
 # (MLP) composed of stacked Fully Connected Neural Networks trained with 
@@ -101,10 +100,26 @@ y_xregs_df = data_prep_df
 # For the forecasting task the last layer is changed to follow a 
 # auto-regression problem.
 
+# Time-series Dense Encoder (TiDE) is a MLP-based univariate time-series 
+# forecasting model. TiDE uses Multi-layer Perceptrons (MLPs) in an 
+# encoder-decoder model for long-term time-series forecasting. In 
+# addition, this model can handle exogenous inputs.
+
+# Time-Series Mixer (TSMixer) is a MLP-based multivariate time-series 
+# forecasting model. TSMixer jointly learns temporal and cross-sectional 
+# representations of the time-series by repeatedly combining time- and 
+# feature information using stacked mixing layers. A mixing layer 
+# consists of a sequential time- and feature Multi Layer Perceptron (MLP). 
+# Note: this model cannot handle exogenous inputs. If you want to use 
+# additional exogenous inputs, use TSMixerx.
+
 # https://nixtlaverse.nixtla.io/neuralforecast/models.mlp.html
+# https://nixtlaverse.nixtla.io/neuralforecast/models.tide.html
+# https://nixtlaverse.nixtla.io/neuralforecast/models.tsmixer.html
+# https://nixtlaverse.nixtla.io/neuralforecast/models.tsmixerx.html
 
 # - Baseline model for DL
-from neuralforecast.models import MLP
+from neuralforecast.models import MLP, TiDE, TSMixer, TSMixerx
 
 # * Engines ---------------------------------------------------------------
 
@@ -114,7 +129,7 @@ models_mlp = [
         input_size = 30,
         num_layers = 2,
         hidden_size = 128,
-        max_steps = 10,
+        max_steps = 100,
         loss = MQLoss(level = levels),
         random_seed = 0,
         alias = 'MLP' 
@@ -124,13 +139,62 @@ models_mlp = [
         input_size = 14,
         num_layers = 2,
         hidden_size = 128,
-        max_steps = 10,
+        max_steps = 300,
         loss = MQLoss(level = levels),
         futr_exog_list = ['y_lag_56', 'event'],
         hist_exog_list = ['y_lag_56', 'event'],
         random_seed = 0,
         alias = 'MLP_exog' 
-    )
+    ),
+    TiDE(
+        h = horizon,
+        input_size = 30,
+        hidden_size = 128,
+        num_encoder_layers = 2,
+        num_decoder_layers = 2,
+        max_steps = 100,
+        loss = MQLoss(level = levels),
+        random_seed = 0,
+        alias = 'TiDE'
+    ),
+    TiDE(
+        h = horizon,
+        input_size = 30,
+        hidden_size = 128,
+        num_encoder_layers = 2,
+        num_decoder_layers = 2,
+        max_steps = 300,
+        loss = MQLoss(level = levels),
+        futr_exog_list = ['y_lag_56', 'event'],
+        hist_exog_list = ['y_lag_56', 'event'],
+        random_seed = 0,
+        alias = 'TiDE_exog'
+    ),
+    # ATTENTION: TSMixer does not accept MQLoss
+    # TSMixer(
+    #     h = horizon,
+    #     input_size = 30,
+    #     n_series = 1,
+    #     n_block = 2,
+    #     ff_dim = 64,
+    #     max_steps = 100,
+    #     loss = MSE(),
+    #     random_seed = 0,
+    #     alias = 'TSMixer'
+    # ),
+    # TSMixerx(
+    #     h = horizon,
+    #     input_size = 30,
+    #     n_series = 1,
+    #     n_block = 2,
+    #     ff_dim = 64,
+    #     max_steps = 300,
+    #     loss = MSE(),
+    #     futr_exog_list = ['y_lag_56', 'event'],
+    #     hist_exog_list = ['y_lag_56', 'event'],
+    #     random_seed = 0,
+    #     alias = 'TSMixer_exog'
+    # )
 ]
 
 nf_mlp = NeuralForecast(
@@ -163,6 +227,61 @@ plot_series(
     level = levels,
     engine = 'plotly'
 ).show()
+
+
+
+# KAN ---------------------------------------------------------------------
+
+# Kolmogorov-Arnold Networks (KANs) are an alternative to 
+# Multi-Layer Perceptrons (MLPs). This model uses KANs similarly 
+# as our MLP model.
+
+# https://nixtlaverse.nixtla.io/neuralforecast/models.kan.html
+
+from neuralforecast.models import KAN
+
+# * Engines ---------------------------------------------------------------
+
+models_kan = [
+    KAN(
+        h = horizon,
+        input_size = 30,
+        hidden_size = 128,
+        n_hidden_layers = 2,
+        max_steps = 100,
+        loss = MQLoss(level = levels),
+        random_seed = 0,
+        alias = 'KAN' 
+    ),
+    KAN(
+        h = horizon,
+        input_size = 30,
+        hidden_size = 128,
+        n_hidden_layers = 2,
+        max_steps = 300,
+        loss = MQLoss(level = levels),
+        futr_exog_list = ['y_lag_56', 'event'],
+        hist_exog_list = ['y_lag_56', 'event'],
+        random_seed = 0,
+        alias = 'KAN_exog' 
+    )
+]
+
+nf_kan = NeuralForecast(
+    models = models_kan,
+    freq = 'D'
+)
+
+# * Evaluation ------------------------------------------------------------
+
+cv_res_kan = pex.calibrate_evaluate_plot(
+    object = nf_kan, data = y_xregs_df.dropna(), 
+    h = horizon, level = levels, loss = 'MQLoss',
+    engine = 'plotly', max_insample_length = horizon * 2  
+)
+cv_res_kan['cv_results']
+cv_res_kan['accuracy_table']
+cv_res_kan['plot'].show()
 
 
 
@@ -811,6 +930,393 @@ cv_res_nbeats = pex.calibrate_evaluate_plot(
 cv_res_nbeats['cv_results']
 cv_res_nbeats['accuracy_table']
 cv_res_nbeats['plot'].show()
+
+
+
+# TimesNET ---------------------------------------------------------------------
+
+# The TimesNet univariate model tackles the challenge of modeling multiple 
+# intraperiod and interperiod temporal variations. The architecture has the 
+# following distinctive features: 
+# - An embedding layer that maps the input sequence into a latent space. 
+# - Transformation of 1D time seires into 2D tensors, based on periods found by FFT. 
+# - A convolutional Inception block that captures temporal variations at 
+# different scales and between periods.
+
+# https://nixtlaverse.nixtla.io/neuralforecast/models.timesnet.html
+
+from neuralforecast.models import TimesNet
+
+# * Engines ---------------------------------------------------------------
+
+models_tnet = [
+    TimesNet(
+        h = horizon, 
+        input_size = 30,
+        hidden_size = 16,
+        conv_hidden_size = 32,
+        loss = MQLoss(level = levels),
+        max_steps = 100,
+        random_seed = 0,
+        alias = 'TimesNET'
+    ), 
+    TimesNet(
+        h = horizon, 
+        input_size = 30,
+        hidden_size = 16,
+        conv_hidden_size = 32,
+        loss = MQLoss(level = levels),
+        max_steps = 100,
+        futr_exog_list = ['y_lag_56', 'event'],
+        random_seed = 0,
+        alias = 'TimesNET_exog'
+    )
+]
+
+nf_tnet = NeuralForecast(
+    models = models_tnet,
+    freq = 'D'
+)
+
+# * Evaluation ------------------------------------------------------------
+
+cv_res_tnet = pex.calibrate_evaluate_plot(
+    object = nf_tnet, data = y_xregs_df.dropna(), 
+    h = horizon, level = levels, loss = 'MQLoss',
+    engine = 'plotly', max_insample_length = horizon * 2  
+)
+cv_res_tnet['cv_results']
+cv_res_tnet['accuracy_table']
+cv_res_tnet['plot'].show()
+
+
+
+# TRANSFORMERS ---------------------------------------------------------------------
+
+# Vanilla
+# Autoformer
+# Informer
+# FEDformer
+# TFT
+# PatchTST
+# iTransformer
+
+# Vanilla Transformer, following implementation of the Informer paper, 
+# used as baseline. The architecture has three distinctive features: 
+# - Full-attention mechanism with O(L^2) time and memory complexity. 
+# - Classic encoder-decoder proposed by Vaswani et al. (2017) with a 
+# multi-head attention mechanism. 
+# - An MLP multi-step decoder that predicts long time-series sequences 
+# in a single forward operation rather than step-by-step.
+# The Vanilla Transformer model utilizes a three-component approach 
+# to define its embedding: 
+# - It employs encoded autoregressive features obtained from a convolution network. 
+# - It uses window-relative positional embeddings derived from harmonic functions. 
+# - Absolute positional embeddings obtained from calendar features are utilized.
+# https://nixtlaverse.nixtla.io/neuralforecast/models.vanillatransformer.html
+
+# The Autoformer model tackles the challenge of finding reliable dependencies 
+# on intricate temporal patterns of long-horizon forecasting. The architecture 
+# has the following distinctive features: 
+# - In-built progressive decomposition in trend and seasonal compontents 
+# based on a moving average filter. 
+# - Auto-Correlation mechanism that discovers the period-based dependencies 
+# by calculating the autocorrelation and aggregating similar sub-series based 
+# on the periodicity. 
+# - Classic encoder-decoder proposed by Vaswani et al. (2017) with a 
+# multi-head attention mechanism.
+# The Autoformer model utilizes a three-component approach to define its 
+# embedding: 
+# - It employs encoded autoregressive features obtained from a convolution network. 
+# - Absolute positional embeddings obtained from calendar features are utilized.
+# https://nixtlaverse.nixtla.io/neuralforecast/models.autoformer.html
+
+# The Informer model tackles the vanilla Transformer computational complexity 
+# challenges for long-horizon forecasting. The architecture has three 
+# distinctive features: 
+# - A ProbSparse self-attention mechanism with an O time and memory 
+# complexity Llog(L). 
+# - A self-attention distilling process that prioritizes attention 
+# and efficiently handles long input sequences. 
+# - An MLP multi-step decoder that predicts long time-series sequences 
+# in a single forward operation rather than step-by-step.
+# The Informer model utilizes a three-component approach to define its embedding: 
+# - It employs encoded autoregressive features obtained from a convolution network. 
+# - It uses window-relative positional embeddings derived from harmonic functions. 
+# - Absolute positional embeddings obtained from calendar features are utilized.
+# https://nixtlaverse.nixtla.io/neuralforecast/models.informer.html
+
+# The FEDformer model tackles the challenge of finding reliable dependencies
+#  on intricate temporal patterns of long-horizon forecasting. The architecture 
+# has the following distinctive features: 
+# - In-built progressive decomposition in trend and seasonal components 
+# based on a moving average filter. 
+# - Frequency Enhanced Block and Frequency Enhanced Attention to perform 
+# attention in the sparse representation on basis such as Fourier transform. 
+# - Classic encoder-decoder proposed by Vaswani et al. (2017) with a 
+# multi-head attention mechanism.
+# The FEDformer model utilizes a three-component approach to define its embedding:
+# - It employs encoded autoregressive features obtained from a convolution network. 
+# - Absolute positional embeddings obtained from calendar features are utilized.
+# https://nixtlaverse.nixtla.io/neuralforecast/models.fedformer.html
+
+# In summary Temporal Fusion Transformer (TFT) combines gating layers, an 
+# LSTM recurrent encoder, with multi-head attention layers for a multi-step 
+# forecasting strategy decoder. TFT’s inputs are static exogenous, historic 
+# exogenous, exogenous available at the time of the prediction and autorregresive 
+# features, each of these inputs is further decomposed into categorical 
+# and continuous. The network uses a multi-quantile regression.
+# https://nixtlaverse.nixtla.io/neuralforecast/models.tft.html
+
+# The PatchTST model is an efficient Transformer-based model for multivariate 
+# time series forecasting. It is based on two key components: 
+# - segmentation of time series into windows (patches) which are served as 
+# input tokens to Transformer 
+# - channel-independence where each channel contains a single univariate 
+# time series.
+# https://nixtlaverse.nixtla.io/neuralforecast/models.patchtst.html
+
+# The iTransformer model simply takes the Transformer architecture but it 
+# applies the attention and feed-forward network on the inverted dimensions. 
+# This means that time points of each individual series are embedded into 
+# tokens. That way, the attention mechanisms learn multivariate correlation 
+# and the feed-forward network learns non-linear relationships.
+# https://nixtlaverse.nixtla.io/neuralforecast/models.itransformer.html
+
+from neuralforecast.models import (
+    VanillaTransformer, Autoformer, Informer, FEDformer, 
+    TFT, PatchTST, iTransformer
+)
+
+# * Engines ---------------------------------------------------------------
+
+models_tformer = [
+    VanillaTransformer(
+        h = horizon,
+        input_size = 30,
+        hidden_size = 128,
+        conv_hidden_size = 32,
+        n_head = 2,
+        encoder_layers = 2,
+        decoder_layers = 1,
+        loss = MQLoss(level = levels),
+        max_steps = 100,
+        random_seed = 0,
+        alias = 'Vanilla'
+    ),
+    VanillaTransformer(
+        h = horizon,
+        input_size = 30,
+        hidden_size = 128,
+        conv_hidden_size = 32,
+        n_head = 2,
+        encoder_layers = 2,
+        decoder_layers = 1,
+        loss = MQLoss(level = levels),
+        max_steps = 100,
+        futr_exog_list = ['event'],
+        random_seed = 0,
+        alias = 'Vanilla_exog'
+    ),
+    Autoformer(
+        h = horizon,
+        input_size = 30,
+        hidden_size = 128,
+        conv_hidden_size = 32,
+        n_head = 2,
+        encoder_layers = 2,
+        decoder_layers = 1,
+        loss = MQLoss(level = levels),
+        max_steps = 100,
+        random_seed = 0,
+        alias = 'Autoformer'
+    ),
+    Autoformer(
+        h = horizon,
+        input_size = 30,
+        hidden_size = 128,
+        conv_hidden_size = 32,
+        n_head = 2,
+        encoder_layers = 2,
+        decoder_layers = 1,
+        loss = MQLoss(level = levels),
+        max_steps = 100,
+        futr_exog_list = ['event'],
+        random_seed = 0,
+        alias = 'Autoformer_exog'
+    ),
+    Informer(
+        h = horizon,
+        input_size = 30,
+        hidden_size = 128,
+        conv_hidden_size = 32,
+        n_head = 2,
+        encoder_layers = 2,
+        decoder_layers = 1,
+        loss = MQLoss(level = levels),
+        max_steps = 100,
+        random_seed = 0,
+        alias = 'Informer'
+    ),
+    Informer(
+        h = horizon,
+        input_size = 30,
+        hidden_size = 128,
+        conv_hidden_size = 32,
+        n_head = 2,
+        encoder_layers = 2,
+        decoder_layers = 1,
+        loss = MQLoss(level = levels),
+        max_steps = 100,
+        futr_exog_list = ['event'],
+        random_seed = 0,
+        alias = 'Informer_exog'
+    ),
+    FEDformer(
+        h = horizon,
+        input_size = 30,
+        hidden_size = 128,
+        conv_hidden_size = 32,
+        n_head = 8,
+        encoder_layers = 2,
+        decoder_layers = 1,
+        version = 'Fourier',
+        modes = 64,
+        mode_select = 'random',
+        # MovingAvg_window = 30,
+        loss = MQLoss(level = levels),
+        max_steps = 100,
+        random_seed = 0,
+        alias = 'FEDformer'
+    ),
+    FEDformer(
+        h = horizon,
+        input_size = 30,
+        hidden_size = 128,
+        conv_hidden_size = 32,
+        n_head = 8,
+        encoder_layers = 2,
+        decoder_layers = 1,
+        version = 'Fourier',
+        modes = 64,
+        mode_select = 'random',
+        # MovingAvg_window = 30,
+        loss = MQLoss(level = levels),
+        max_steps = 100,
+        futr_exog_list = ['event'],
+        random_seed = 0,
+        alias = 'FEDformer_exog'
+    ),
+    TFT(
+        h = horizon,
+        input_size = 30,
+        hidden_size = 128,
+        n_head = 2,
+        loss = MQLoss(level = levels),
+        max_steps = 100,
+        random_seed = 0,
+        alias = 'TFT'
+    ),
+    TFT(
+        h = horizon,
+        input_size = 30,
+        hidden_size = 128,
+        n_head = 2,
+        loss = MQLoss(level = levels),
+        max_steps = 100,
+        futr_exog_list = ['event'],
+        hist_exog_list = ['event'],
+        random_seed = 0,
+        alias = 'TFT_exog'
+    ),
+    PatchTST(
+        h = horizon,
+        input_size = 56,
+        hidden_size = 128,
+        n_heads = 4,
+        patch_len = 30,
+        stride = 30,
+        revin = False,
+        loss = MQLoss(level = levels),
+        max_steps = 100,
+        random_seed = 0,
+        alias = 'PatchTST'
+    ),
+    # ATTENTION: iTransformer cannot be trained on MQLoss
+    # iTransformer(
+    #     h = horizon,
+    #     input_size = 56,
+    #     n_series = 1,
+    #     hidden_size = 128,
+    #     n_heads = 2,
+    #     e_layers = 2,
+    #     d_layers = 1,
+    #     d_ff = 4,
+    #     loss = MSE(),
+    #     max_steps = 100,
+    #     random_seed = 0,
+    #     alias = 'iTransformer'
+    # ),
+    # iTransformer(
+    #     h = horizon,
+    #     input_size = 56,
+    #     n_series = 1,
+    #     hidden_size = 128,
+    #     n_heads = 2,
+    #     e_layers = 2,
+    #     d_layers = 1,
+    #     d_ff = 4,
+    #     loss = MSE(),
+    #     futr_exog_list = ['event'],
+    #     hist_exog_list = ['event'],
+    #     max_steps = 100,
+    #     random_seed = 0,
+    #     alias = 'iTransformer_exog'
+    # )
+]
+
+nf_tformer = NeuralForecast(
+    models = models_tformer,
+    freq = 'D'
+)
+
+# * Evaluation ------------------------------------------------------------
+
+cv_res_tformer = pex.calibrate_evaluate_plot(
+    object = nf_tformer, data = y_xregs_df.dropna(), 
+    h = horizon, level = levels, loss = 'MQLoss',
+    engine = 'plotly', max_insample_length = horizon * 2  
+)
+cv_res_tformer['cv_results']
+cv_res_tformer['accuracy_table']
+cv_res_tformer['plot'].show()
+
+
+
+
+cv_res_mlp['accuracy_table']
+cv_res_dnpts['accuracy_table']
+cv_res_drnn['accuracy_table']
+cv_res_kan['accuracy_table']
+cv_res_lin['accuracy_table']
+cv_res_lstm['accuracy_table']
+cv_res_nbeats['accuracy_table']
+cv_res_rnn['accuracy_table']
+cv_res_deepar['accuracy_table']
+cv_res_tcn['accuracy_table']
+cv_res_tnet['accuracy_table']
+cv_res_tformer['accuracy_table']
+
+# mlp_exog
+# drnn_exog
+# kan_exog
+# gru_exog
+# nbeatsx
+# nhits_exog
+# rnn_exog
+# deepar_exog
+# tcn_exog
+# tft_exog
 
 
 
