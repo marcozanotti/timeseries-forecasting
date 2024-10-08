@@ -1,6 +1,6 @@
 # Time Series Forecasting: Machine Learning and Deep Learning with R & Python ----
 
-# Lecture 11: Recursive Time Series Algorithms ----------------------------
+# Lecture 12: Recursive Time Series Algorithms ----------------------------
 # Marco Zanotti
 
 # Goals:

@@ -1,6 +1,6 @@
 # Time Series Forecasting: Machine Learning and Deep Learning with R & Python ----
 
-# Lecture 12: Panel Time Series Forecasting -------------------------------
+# Lecture 11: Panel Time Series Forecasting -------------------------------
 # Marco Zanotti
 
 # Goals:
