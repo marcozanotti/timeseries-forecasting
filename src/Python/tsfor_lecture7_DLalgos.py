@@ -1293,84 +1293,186 @@ cv_res_tformer['plot'].show()
 
 
 
+# DL Models' Performance Comparison ---------------------------------------
 
-cv_res_mlp['accuracy_table']
-cv_res_dnpts['accuracy_table']
-cv_res_drnn['accuracy_table']
-cv_res_kan['accuracy_table']
-cv_res_lin['accuracy_table']
-cv_res_lstm['accuracy_table']
-cv_res_nbeats['accuracy_table']
-cv_res_rnn['accuracy_table']
-cv_res_deepar['accuracy_table']
-cv_res_tcn['accuracy_table']
-cv_res_tnet['accuracy_table']
-cv_res_tformer['accuracy_table']
-
-# mlp_exog
-# drnn_exog
-# kan_exog
-# gru_exog
-# nbeatsx
-# nhits_exog
-# rnn_exog
-# deepar_exog
-# tcn_exog
-# tft_exog
-
-
-
-
-
-
-# XX ---------------------------------------------------------------------
-
-# Multi Layer Elman RNN (RNN), with MLP decoder. The network has tanh or 
-# relu non-linearities, it is trained using ADAM stochastic gradient 
-# descent. The network accepts static, historic and future exogenous data.
-
-# https://nixtlaverse.nixtla.io/neuralforecast/models.rnn.html
-
-from neuralforecast.models import XX
+from neuralforecast.models import (
+    MLP,
+    RNN,
+    DilatedRNN,
+    GRU,
+    KAN,
+    TCN,
+    NBEATSx,
+    NHITS,
+    TFT
+)
 
 # * Engines ---------------------------------------------------------------
 
-models_xx = [
-
+models_ts = [
+    MLP(
+        h = horizon,
+        input_size = 14,
+        num_layers = 2,
+        hidden_size = 128,
+        max_steps = 300,
+        loss = MQLoss(level = levels),
+        futr_exog_list = ['y_lag_56', 'event'],
+        hist_exog_list = ['y_lag_56', 'event'],
+        random_seed = 0
+    ),
+    RNN(
+        h = horizon,
+        input_size = -1,
+        inference_input_size = -1,
+        encoder_n_layers = 2,
+        encoder_hidden_size = 128,
+        encoder_activation = 'relu',
+        decoder_layers = 2,
+        decoder_hidden_size = 128,
+        max_steps = 300,
+        loss = MQLoss(level = levels),
+        futr_exog_list = ['y_lag_56', 'event'],
+        hist_exog_list = ['y_lag_56', 'event'],
+        random_seed = 0               
+    ),
+    DilatedRNN(
+        h = horizon,
+        input_size = -1,
+        inference_input_size = -1,
+        cell_type = 'RNN',
+        encoder_hidden_size = 128,
+        decoder_hidden_size = 128,
+        max_steps = 300,
+        loss = MQLoss(level = levels),
+        futr_exog_list = ['y_lag_56', 'event'],
+        hist_exog_list = ['y_lag_56', 'event'],
+        random_seed = 0               
+    ),
+    GRU(
+        h = horizon,
+        input_size = -1,
+        inference_input_size = -1,
+        encoder_n_layers = 2,
+        encoder_hidden_size = 128,
+        encoder_activation = 'relu',
+        decoder_layers = 2,
+        decoder_hidden_size = 128,
+        max_steps = 300,
+        loss = MQLoss(level = levels),
+        futr_exog_list = ['y_lag_56', 'event'],
+        hist_exog_list = ['y_lag_56', 'event'],
+        random_seed = 0 
+    ),
+    KAN(
+        h = horizon,
+        input_size = 30,
+        hidden_size = 128,
+        n_hidden_layers = 2,
+        max_steps = 300,
+        loss = MQLoss(level = levels),
+        futr_exog_list = ['y_lag_56', 'event'],
+        hist_exog_list = ['y_lag_56', 'event'],
+        random_seed = 0
+    ),
+    TCN(
+        h = horizon,
+        input_size = -1,
+        inference_input_size = -1,
+        kernel_size = 2, 
+        dilations = [1, 7, 14],
+        encoder_hidden_size = 128,
+        decoder_layers = 2,
+        decoder_hidden_size = 128,
+        max_steps = 100,
+        loss = MQLoss(level = levels),
+        futr_exog_list = ['y_lag_56', 'event'],
+        hist_exog_list = ['y_lag_56', 'event'],
+        random_seed = 0                
+    ),
+    NBEATSx(
+        h = horizon, 
+        input_size = 30,
+        stack_types = ['identity', 'trend', 'seasonality'],
+        loss = MQLoss(level = levels),
+        max_steps = 300,
+        futr_exog_list = ['y_lag_56', 'event'],
+        hist_exog_list = ['y_lag_56', 'event'],
+        random_seed = 0
+    ), 
+    NHITS(
+        h = horizon, 
+        input_size = 30,
+        n_freq_downsample = [2, 1, 1],
+        loss = MQLoss(level = levels),
+        max_steps = 300,
+        futr_exog_list = ['y_lag_56', 'event'],
+        hist_exog_list = ['y_lag_56', 'event'],
+        random_seed = 0
+    ),
+    TFT(
+        h = horizon,
+        input_size = 30,
+        hidden_size = 128,
+        n_head = 2,
+        loss = MQLoss(level = levels),
+        max_steps = 100,
+        futr_exog_list = ['event'],
+        hist_exog_list = ['event'],
+        random_seed = 0
+    )
 ]
 
-nf_xx = NeuralForecast(
-    models = models_xx,
+nf_ts = NeuralForecast(
+    models = models_ts,
     freq = 'D'
 )
 
 # * Evaluation ------------------------------------------------------------
 
-cv_res_xx = pex.calibrate_evaluate_plot(
-    object = nf_xx, data = y_xregs_df.dropna(), 
+cv_res_ts = pex.calibrate_evaluate_plot(
+    object = nf_ts, data = y_xregs_df.dropna(),
     h = horizon, level = levels, loss = 'MQLoss',
     engine = 'plotly', max_insample_length = horizon * 2  
 )
-cv_res_xx['cv_results']
-cv_res_xx['accuracy_table']
-cv_res_xx['plot'].show()
+cv_res_ts['cv_results']
+cv_res_ts['accuracy_table'].print_accuracy_table('min')
+cv_res_ts['plot'].show()
 
 # * Refitting & Forecasting -----------------------------------------------
 
-nf_xx.fit(df = y_xregs_df.dropna()) 
-
-preds_df_xx = nf_xx.predict(futr_df = forecast_df) \
+nf_ts.fit(df = y_xregs_df.dropna())
+preds_df_ts = nf_ts.predict(futr_df = forecast_df) \
     .rename(columns = lambda x: re.sub('-median', '', x))
-preds_df_xx
 
 plot_series(
-    data_prep_df, preds_df_xx,
+    y_xregs_df, preds_df_ts,
     max_insample_length = horizon * 2,
     level = levels,
     engine = 'plotly'
 ).show()
 
+# * Select Best Model -----------------------------------------------------
 
+preds_best_df = preds_df_ts \
+    .get_best_model_forecast(cv_res_ts['accuracy_table'], 'rmse')
+plot_series(
+    y_xregs_df, preds_best_df,
+    max_insample_length = horizon * 2,
+    level = levels,
+    engine = 'plotly'
+).show()
+
+# * Back-transform --------------------------------------------------------
+
+data_back_dict = pex.back_transform_data(y_xregs_df, params, preds_df_ts)
+plot_series(
+    data_back_dict['data_back'], 
+    data_back_dict['forecasts_back'], 
+    max_insample_length = horizon * 2,
+    level = levels,
+    engine = 'plotly', 
+).show()
 
 
 
@@ -1384,3 +1486,52 @@ plot_series(
 #   - Does not always factor with external regressors
 #     - Solution 1: Run DL without. Run ML on the Residuals.
 #     - Solution 2: Create an Ensemble with ML & DL
+
+
+
+# # XX ---------------------------------------------------------------------
+
+# # Multi Layer Elman RNN (RNN), with MLP decoder. The network has tanh or 
+# # relu non-linearities, it is trained using ADAM stochastic gradient 
+# # descent. The network accepts static, historic and future exogenous data.
+
+# # https://nixtlaverse.nixtla.io/neuralforecast/models.rnn.html
+
+# from neuralforecast.models import XX
+
+# # * Engines ---------------------------------------------------------------
+
+# models_xx = [
+
+# ]
+
+# nf_xx = NeuralForecast(
+#     models = models_xx,
+#     freq = 'D'
+# )
+
+# # * Evaluation ------------------------------------------------------------
+
+# cv_res_xx = pex.calibrate_evaluate_plot(
+#     object = nf_xx, data = y_xregs_df.dropna(), 
+#     h = horizon, level = levels, loss = 'MQLoss',
+#     engine = 'plotly', max_insample_length = horizon * 2  
+# )
+# cv_res_xx['cv_results']
+# cv_res_xx['accuracy_table']
+# cv_res_xx['plot'].show()
+
+# # * Refitting & Forecasting -----------------------------------------------
+
+# nf_xx.fit(df = y_xregs_df.dropna()) 
+
+# preds_df_xx = nf_xx.predict(futr_df = forecast_df) \
+#     .rename(columns = lambda x: re.sub('-median', '', x))
+# preds_df_xx
+
+# plot_series(
+#     data_prep_df, preds_df_xx,
+#     max_insample_length = horizon * 2,
+#     level = levels,
+#     engine = 'plotly'
+# ).show()

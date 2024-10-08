@@ -5,10 +5,11 @@ Notes
 
 - scikit-learn pipelines for ML
 - hypertuning with ML and DL
+- automl
 - ensembles
 - global modelling
-- hierarchical forecasting with SL, ML and DL
 
+- hierarchical forecasting with SL, ML and DL
 - tsfeatures with clustering
 - transfer learning
 - MLflow with SM, ML and DL

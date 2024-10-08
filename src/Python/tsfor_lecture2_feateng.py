@@ -5,7 +5,8 @@
 
 # Goals:
 # - Learn advanced features engineering workflows & techniques
-# - Learn how to use recipes
+# - Learn how to use pytimetk
+# - Learn how to create Scikit-Learn preprocessing pipelines
 
 # Challenges:
 # - Challenge 1 - Feature Engineering
