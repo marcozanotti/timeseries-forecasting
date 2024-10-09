@@ -255,6 +255,9 @@ nf_preds_df
 # Algorithms
 # https://docs.h2o.ai/h2o/latest-stable/h2o-docs/data-science.html
 
+import h2o
+from h2o.automl import H2OAutoML
+
 # * Initialize H2O --------------------------------------------------------
 
 # Dependency on JAVA
@@ -283,8 +286,36 @@ nf_preds_df
 # Sys.setenv(JAVA_HOME="/usr/lib/jvm/jdk-17/")
 # Sys.getenv('JAVA_HOME')
 
+h2o.init(nthreads = -1)
 
 # * Format data -----------------------------------------------------------
+
+# select variables
+y_xregs_df_h2o = data_prep_df \
+    .select_columns('(_lag_)|(event)|(holiday)|(_quarter)|(_month)|(_wday)') \
+    .dropna()
+y_xregs_df_h2o
+forecast_df_h2o = forecast_df \
+    .select_columns('(_lag_)|(event)|(holiday)|(_quarter)|(_month)|(_wday)') \
+    .drop('y', axis = 1)
+forecast_df_h2o
+
+# create train / test split
+train_df = y_xregs_df_h2o.head(n = -horizon)
+test_df = y_xregs_df_h2o.tail(n = horizon)
+
+# convert data.frame into h2o.frame
+train_hf = h2o.H2OFrame(train_df)
+test_hf = h2o.H2OFrame(test_df)
+forecast_hf = h2o.H2OFrame(forecast_df_h2o)
+
+# identify predictors and response
+X = train_hf.columns
+X.remove('unique_id')
+X.remove('ds')
+X.remove('y')
+X
+y = 'y'
 
 # * Engines ---------------------------------------------------------------
 
@@ -298,9 +329,64 @@ nf_preds_df
 # - StackedEnsemble (Stacked Ensembles, includes an ensemble of all the
 #   base models and ensembles using subsets of the base models)
 
+# AutoML for 20 base models
+aml = H2OAutoML(
+    max_runtime_secs = 120,
+    # max_runtime_secs_per_model = 30,
+    max_models = 30, 
+    nfolds = -1,
+    sort_metric = 'RMSE',
+    # include_algos = c("DRF"),
+    # exclude_algos = c("DeepLearning"), # remove deeplearning for computation time
+    project_name = 'tsf_test',
+    seed = 1
+)
 
 # * Evaluation ------------------------------------------------------------
 
+# fitting
+aml.train(x = X, y = y, training_frame = train_hf, leaderboard_frame = test_hf)
+
+# view the AutoML Leaderboard
+lb = h2o.automl.get_leaderboard(aml, extra_columns = "ALL")
+lb
+
+# extract leader model
+leader = aml.leader
+# aml.get_best_model(criterion = 'mae')
+# aml.get_best_model(algorithm = 'xgboost')
+# aml.get_best_model(algorithm = 'xgboost', criterion = 'mae')
+# h2o.get_model('XRT_1_AutoML_1_20241009_103759') 
+
+# predict
+preds = leader.predict(test_hf)
+preds
+
+# evaluate
+performance = leader.model_performance(test_hf)
+performance
+
+# plot
+preds_df = pd.concat(
+    [
+        test_df.select_columns().reset_index(drop = True),
+        preds.as_data_frame().rename(columns = {'predict': 'H2O_AutoML'})
+    ], 
+    axis = 1
+)
+plot_series(forecasts_df = preds_df, engine = 'plotly').show()
 
 # * Refitting & Forecasting -----------------------------------------------
+
+# leader.predict(forecast_hf)
+
+# to refit the best model, it is necessary to extract the model parameters
+# and fit it manually with h2o specific models (not AutoML)
+leader.params.keys()
+leader.params
+
+
+
+# Stop the H20 cluster !!!!!!!!!!!!!!!!!!!!!!!!!!1
+h2o.shutdown()
 

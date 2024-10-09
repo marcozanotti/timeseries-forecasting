@@ -49,6 +49,15 @@ dependencies:
       - catboost >= 1.2.0, < 2.0.0
       - cubist >=  0.1.0, < 1.0.0
 
+      # H2O - AutoML
+      - requests
+      - tabulate
+      - future
+      - h2o
+
+
+
+
       # Optimization
       - hyperopt >= 0.2.0, < 1.0.0
       - ray >= 2.30.0, < 3.0.0
