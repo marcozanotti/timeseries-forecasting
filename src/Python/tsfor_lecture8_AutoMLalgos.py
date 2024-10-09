@@ -159,7 +159,7 @@ models_mlf = [
 mlf = AutoMLForecast(
     models = models_mlf,
     freq = 'D',
-    season_length = 24, 
+    season_length = 7, 
     num_threads = -1
 )
 
@@ -214,7 +214,6 @@ cv_res_sf['accuracy_table']
 cv_res_sf['plot'].show()
 
 # Machine Learning Models
-
 # To see the results use .fit and then use .predict
 # to produce the forecasts with the optimal models
 mlf.fit(

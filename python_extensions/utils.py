@@ -122,7 +122,7 @@ def calibrate_evaluate_plot(
             prediction_intervals = prediction_intervals, 
             level = level
         )
-    elif object_class == "<class 'mlforecast.core.MLForecast'>":
+    elif object_class == "<class 'mlforecast.forecast.MLForecast'>":
         cv_res = object.cross_validation(
             df = data, h = h, n_windows = 1,
             prediction_intervals = prediction_intervals, 

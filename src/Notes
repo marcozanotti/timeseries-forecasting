@@ -3,15 +3,14 @@ Notes
 - look at code from ModernTSF2
 - online tutorials
 
-- scikit-learn pipelines for ML
 - hypertuning with ML and DL
-- automl
 - ensembles
 - global modelling
 
 - hierarchical forecasting with SL, ML and DL
 - tsfeatures with clustering
 - transfer learning
+- scikit-learn pipelines for ML
 - MLflow with SM, ML and DL
 - dashboard
 - sktime
